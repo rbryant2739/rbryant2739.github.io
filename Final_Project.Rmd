@@ -1,0 +1,9 @@
+---
+title: "Do Cell Phones Kill?"
+output: html_document
+---
+
+INTRODUCTION:
+
+As you can see from the sinister title, in my project we will be taking a look at the effect cell phones have on car mortality rates. Lawmakers are constantly forced to make new laws as technology continues to evolve. There are now strict laws on cell phone usage while driving and there are steep prices to pay if you are caught and fined using your phone while driving. Now there are new hands-free developments that are making it easier to use your cell phone while keeping both hands on the wheel while driving. We will be looking to see if there are more fatal car accidents in years where cell phones become more and more common. This is an important experiment to be able to visualize and truly understand the effect of cell phone usage on car accidents and more specifically mortality rates. Going in, I do not know for a fact whether or not car mortality rates increase directly with cell phone numbers increasing. However, I do predict that they will have a direct, dependent relationship. I will be providing a tutorial on how to gather the data, tidy it up in a way for us to use and analyze our problem at hand. Run regressions and see if we are able to predict car mortality rates from cell phone increase. To not overwhelm with data, I will look at the 20 year period from 1990-2010 on ten of the key countries : United States, England, France, Italy, Japan, China, Spain, Canada, and Mexico. 
+
