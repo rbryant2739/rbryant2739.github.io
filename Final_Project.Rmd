@@ -1,9 +1,338 @@
 ---
-title: "Do Cell Phones Kill?"
+title: "Gun Violence Trends"
 output: html_document
 ---
 
 INTRODUCTION:
 
-As you can see from the sinister title, in my project we will be taking a look at the effect cell phones have on car mortality rates. Lawmakers are constantly forced to make new laws as technology continues to evolve. There are now strict laws on cell phone usage while driving and there are steep prices to pay if you are caught and fined using your phone while driving. Now there are new hands-free developments that are making it easier to use your cell phone while keeping both hands on the wheel while driving. We will be looking to see if there are more fatal car accidents in years where cell phones become more and more common. This is an important experiment to be able to visualize and truly understand the effect of cell phone usage on car accidents and more specifically mortality rates. Going in, I do not know for a fact whether or not car mortality rates increase directly with cell phone numbers increasing. However, I do predict that they will have a direct, dependent relationship. I will be providing a tutorial on how to gather the data, tidy it up in a way for us to use and analyze our problem at hand. Run regressions and see if we are able to predict car mortality rates from cell phone increase. To not overwhelm with data, I will look at the 20 year period from 1990-2010 on ten of the key countries : United States, England, France, Italy, Japan, China, Spain, Canada, and Mexico. 
+Given from the sinister title, we will be examining gun violence in the United States to see if we can form any predictions and correctly hypothesize based on the data. Gun Violence is extremely prevelant in the United States and the polarizing topic of gun laws is talked about daily. It is obviously a very important topic and we will explore a basic start to diving into the data and seeing if we would be able to predict things like the number of deaths due to gun violence in America, or to see if we will be able to predict which areas (Cities | States)  of the country will be effected the most by gun violence. While this project examines a very serious topic, it will be a good subject to give a tutorial to data pipelining with because it is loaded with raw data. In the data set being used we are given the number of wounded victims, the number of deaths, the latitude & longitude of the incedents, the date of the incidents and more. In some incidents we are even provided the type of gun used. 
+
+
+GATHERING DATA:
+
+The first step is downloading and importing the data we will be examining. We will be using data from :
+
+https://www.kaggle.com/jameslko/gun-violence-data/version/1#
+
+
+Download the data file and save it as a csv files. 
+
+```{r setup}
+
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+
+gun_violence <- read.csv("gun_violence.csv")
+
+
+```
+
+```{r preview}
+head(gun_violence)
+```
+
+
+Now that we have stored the database in gun_violence, it is time to tidy & modify the data in a way that helps us use it in the next stages of analysis. The "%>%" is the pipeline symbol & allows you to make a sequence of direct modifications to a dataframe. 
+
+
+```{r tidy_gun}
+
+   library(stringr)
+
+   gun_violence_df <- gun_violence %>%
+     #mutate creates a new column based on a condition
+     #count number of male|female participants and add them to get n_participants
+     mutate(n_male = str_count(participant_gender, 
+                               "Male"))%>% 
+     mutate(n_fem = str_count(participant_gender,
+                              "Female")) %>%     
+     mutate(n_participants = n_male + n_fem) %>%
+     #count number of teens | adults
+     mutate(n_adults = str_count(participant_age_group, 
+                                 "Adult")) %>%
+     mutate(n_teens = str_count(participant_age_group,
+                                "Teen")) %>%
+     #too many dates to represent as graph so convert to years
+     mutate(Date = (mdy(gun_violence$date))) %>%
+     mutate(Year = year(Date)) %>%
+     mutate(n_victims = n_killed + n_injured) %>%
+     #select creates a subset of columns to extract only the columns we want to look at
+     select(incident_id, Date, Year, state,city_or_county,n_killed,
+            n_injured, n_victims, n_male, n_fem, n_participants, 
+            gun_type, latitude, longitude,
+            n_adults, n_teens)
+     
+
+    slice(gun_violence_df, 1:10)
+
+```
+With this new and cleaner data, we can easily plot and express certain things we may want to see. For example we can make two separate scatter plots seeing if there is a trend in the percentage of participants that are male and then one showing the percentage of participants that are female. We will do this by using a scatter plot. 
+
+
+```{r plot_boys}
+
+gun_violence_df %>%
+  #group_by groups data around an attribute to allow you to perform math functions like sum() and mean()
+  group_by(gun_violence_df$Year) %>%
+  mutate(pct_male = sum(n_male) / sum(n_participants)) %>%
+  #ggplot allows you to set x coordinate & y coordinate
+  ggplot(aes(x=(Year), y=(pct_male))) + 
+  #scatter plot
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  labs(title = "Percentage of Male Participants", y = "%Male", x = "Year")
+
+```
+
+```{r girl_plot}
+gun_violence_df %>%
+  #group_by groups data around an attribute to allow you to perform math functions like sum() and mean()
+  group_by(gun_violence_df$Year) %>%
+  mutate(pct_fem = sum(n_fem) / sum(n_participants)) %>%
+  #ggplot allows you to set x coordinate & y coordinate
+  ggplot(aes(x=(Year), y= pct_fem)) + 
+  #scatter plot
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  labs(title = "Percentage of Female Participants", y = "%Female", x = "Year")
+
+
+```
+
+These are very boring plots to look at, because there aren't many points plotted. From these plots however, we can see that in 2013 there were a lot more females involved in gun violence, nearly 10% more than the second highest year in 2014. The regression line indicates that there are less and less females involved obviously leaving more and more involvement to males when it comes to gun violence. However, since our data only covers a 5 year period I am not sure it is enough to really make a prediction from. A much more interesting plot plots the number of victims per incedent over all dates. 
+
+
+```{r violin_plot}
+
+gun_violence_df %>%
+  ggplot(aes(x = Date, y = n_victims)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  labs(x = "Date", y = "# of Victims in Each Incedent", title= "Victims in Each Incedent Over Time")
+
+  
+
+```
+
+Although most incidents same to have the same number of victims, we can see that the only incedents involving more than 25 victims from this data are in the years 2015 and beyond. To make the data even more interesting, we can isolate major cities to see how they compare. I good way to compare totals is using a bar chart. We can add up all of the gun violence victims and compare the cities. 
+
+
+```{r city_regressions}
+gun_violence_df %>%
+  #group by the year and city to add up the total victims from each year in each city
+  group_by(city_or_county, Year) %>%
+  mutate(total_vic = sum(n_victims)) %>%
+  #filter to focus on key cities
+  filter(city_or_county == "Baltimore" |
+         city_or_county == "Chicago" |
+         city_or_county == "Detroit" |
+         city_or_county == "Philadelphia" |
+         city_or_county == "Atlanta" | 
+         city_or_county == "Washington" | 
+         city_or_county == "Orlando") %>%
+  ggplot(aes(x = Year, y = total_vic,   
+             color = city_or_county)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  labs(x = "Year", y = "Total Number of Victims", title = "Major City Victim Totals Over the Years")
+
+
+```
+
+As we can see from the data the only two cities that seem to have any sort of a trend are Philadelphia & Chicago. Philadelphia's Total number of victims each year seems to be trending slightly downward. Chicago is experiencing the most dramatic change of the key cities and the number of victims seems to be increasing. Chicago is also way more gun violent than any of the other major cities listed here. Something I think is worth noting involves looking back at the previous plot, plotting the number of total victims in each incedent over the years. The biggest outlier is a mass shooting with over 100 victims. Lets find more information about this shooting. 
+
+```{r largest_mass_shooting}
+max_mass_shooting <-
+  #order incidents in descending order of number of victims & then slice 1 to see the max
+  gun_violence_df[order(-gun_violence_df$n_victims),]
+
+slice(max_mass_shooting, 1)
+```
+
+As we can see here, the largest shooting was the mass shooting in Orlando. The total number of victims, killed + injured, was 103. That is by far the biggest shooting in the database. However, even having a shooting that is double the next largest mass shooting, Orlando's victim numbers don't come close to rivaling the gun violence in Chicago. In fact, looking at the plot of the key cities we can see that the mass shooting in orlando accounted for over 20% of Orlando's gun violence victims in 2016. Those 103 victims would only make up 2.8% of Chicago's gun violence victims. My point to be made here is that while the mass shootings are absolutely shockingly tragic & terrible, I think a lot of people are overlooking the gun violence happening in this country on a daily basis. The media covers the mass shootings and shocks the nation, while I cannot think of one story of a Chicago shooting covered in the news. (at least not local news) Just to drive the point home, say we take a look at all of the shootings with over 10 victims and add them up, from all years, and then compare them to Chicago in 2016.
+
+Aside:
+Here is a small article on gun violence in Chicago:
+https://www.quora.com/Why-do-people-use-the-term-Chiraq-for-Chicago
+
+Continued...
+Now lets quickly find the victim totals from chicago in 2016 & the total sum of all incidents with victim counts of 10 or more & then directly compare them using a simple bar plot. 
+```{r mass_vs_chicago}
+sum_of_mass <- filter(gun_violence_df, gun_violence_df$n_victims >= 10) #filter shootings over 10 victims
+
+#sum the total
+sum_of_mass<-sum(sum_of_mass$n_victims)
+sum_of_mass
+```
+
+```{r total_chicago_2016}
+
+#filter year 2016 & city chicago & find the sum
+chiraq16 <- filter(gun_violence_df, gun_violence_df$Year == 2016 & gun_violence_df$city_or_county == "Chicago")
+chiraq16 <- sum(chiraq16$n_victims)
+chiraq16
+```
+
+```{r bar_chart_comp}
+#create quick matrix. Matrix(c(val1, val2), number of columns = value)
+bchart<-matrix(c(sum_of_mass, chiraq16), ncol = 2)
+#add col & row names to matrix
+colnames(bchart) <- c("Total_Mass_Shootings","Chicago16")
+rownames(bchart) <- c("Victim Totals")
+
+#simple way of making bar plot
+
+barplot(bchart, main = "Chicago 2016 vs Mass Shootings from 2013-2018", ylab = "Victim Totals", border = "red", density = 50)
+```
+
+Again, the point to be made here is that while the mass shootings are definitely horrible and tragic, the every day gun violence is often hidden behind these terrible terrible events and I think a lot of people over look the important fact that gun violence happens all the time. 
+
+Lets see if we are able to predict the number of gun violence victims there will be in a certain area on a given year based on the overall trend. That is, let's see if there is a direct correlation between the dates & victim totals based on the data we have. Let's look specifically at the cities we have already mentioned. The first step will be to filter the data around those specific cities. 
+
+```{r key_city_df}
+city_gun_violence_df <- gun_violence_df %>%  
+  group_by(city_or_county, Year) %>%
+  mutate(total_victims = sum(n_victims)) %>%
+  ungroup() %>%
+  filter(city_or_county == "Baltimore" |
+         city_or_county == "Chicago" |
+         city_or_county == "Detroit" |
+         city_or_county == "Philadelphia" |
+         city_or_county == "Atlanta" | 
+         city_or_county == "Washington" | 
+         city_or_county == "Orlando") 
+  
+slice(city_gun_violence_df, 1:10) 
+
+```
+
+
+
+Next lets look at a violin plot to help us visualize what value region victim counts are likely to fall under.
+
+```{r violin_plot_2}
+
+city_gun_violence_df  %>%
+ group_by(city_or_county, Year) %>%
+ mutate(avg_victim_count=mean(total_victims)) %>%
+ ungroup() %>%
+ ggplot(aes(x=factor(Year), y=total_victims)) +
+ geom_violin(trim=FALSE, fill="gray")+
+ labs(title="Total Victims Over Time",
+ x="Year", y = "# of Victims")+
+ geom_boxplot(width=0.1)+
+ geom_point(aes(x=factor(Year), y = avg_victim_count)) +
+ theme_classic()
+
+
+
+```
+
+
+Unfortunately the data does not fit well in a violin plot. Next we will look at some statistics using the tidy() function in the broom package.
+
+```{r tidy_data}
+library(broom)
+tidy_data <- lm(Year~total_victims, city_gun_violence_df) %>%
+ tidy()
+
+tidy_data
+
+```
+Since the P value is relatively low, it does seem that time has a relationship with total victim count. If the p value is low we can reject the hypothesis that year does not have an effect on gun violence victim counts. 
+Lets look at the residuals vs cities. Residuals are a calculated difference between expected value and actual value. 
+
+
+```{r residuals}
+cgvdf <- city_gun_violence_df
+
+lm(cgvdf$Year~cgvdf$city_or_county, data=cgvdf) %>%
+ augment() %>%
+ ggplot(aes(x=factor(cgvdf$city_or_county), y=.resid)) +
+ geom_boxplot() +
+ labs(title="Residual vs. City",
+ x = "City",
+ y = "Residual")
+
+
+```
+Since the Residuals fluctuate a lot, it seems to indicate that error is caused by other factors other than just time. This would indicate other factors play a part in the total number of victims. Lets learn more information with summarize. 
+
+```{r my_own_summer}
+summary(lm(cgvdf$total_victims~cgvdf$city_or_county*cgvdf$Year), data = cgvdf)
+
+```
+
+
+This data is pretty hard to interpret, so we will tidy it up to take a better look.
+
+```{r my_own_summer_tidy}
+summary(lm(cgvdf$total_victims~cgvdf$city_or_county*cgvdf$Year), data = cgvdf) %>%
+  tidy()
+
+
+```
+
+Year does not seem to be a good predicting factor, so let us compare year as a sole factor vs year & city. 
+
+
+```{r anova_y}
+anova(lm(cgvdf$Year~cgvdf$total_victims, cgvdf))
+```
+
+```{r annova_city_v_year}
+anova(lm(cgvdf$total_victims~cgvdf$city_or_county*cgvdf$Year , cgvdf))
+```
+
+The huge residual value would indicate that using both year & city as a predicting factor would also not be a good predictor. From these results I am forced to deduce that year and location can not be used to predict total numbers of gun violence victims. 
+
+One last cool way to observe data is through the leaflet package that allows us to look at a map using longitute & latitude recorded at these incidents to map them. Putting all of the data made my RStudio crash so I have only included the key cities we have been working with all along. Using the longitude & latitude attributes in the data frame, we can map all instances of a gun violence incident on the map. I also calculate avg lat and avg lng of each of the major cities so that I could add a Marker there indicating what City it is. 
+
+```{r leaf_map}
+library(leaflet)
+
+
+city_gun_violence_df %<>% group_by(city_or_county) %>%
+  mutate(avg_lat = mean(latitude)) %>%
+  mutate(avg_lng = mean(longitude)) %>%
+  ungroup()
+
+
+gun_violence_map <- leaflet(city_gun_violence_df) %>%
+  addTiles() %>%
+  setView(lat=39.29, lng=-76.61, zoom=11) %>%
+  addTiles() %>%
+  addCircleMarkers(popup = 
+                     paste(
+      "Killed:", city_gun_violence_df$n_killed, "<br>",
+      "Injured:",city_gun_violence_df$n_injured,"<br>",
+      "Females:", city_gun_violence_df$n_fem, "<br>",
+      "Males:", city_gun_violence_df$n_male, "<br>",
+      "Date:", city_gun_violence_df$Date),
+             clusterOptions = markerClusterOptions()) %>%
+  addMarkers(lat = city_gun_violence_df$avg_lat, lng = city_gun_violence_df$avg_lng, popup = city_gun_violence_df$city_or_county)
+
+gun_violence_map
+
+```
+
+
+Through my project we covered some basic techniques to gather, tidy, organize, and analyze data. Some difficult methods are analyzing attributes as predictors and studying their residuals and other statistics. Unfortunately it seems that this data set is not a good example to see clear illustrations of those methods. However I do believe I was able to show how overshadowed every day gun violence is by mass shootings. We did also learn that year & year * location cannot really be used as direct factors in the number of gun violence victims. 
+
+To find more information on gun violence, here are some links that have a lot of information to offer. 
+
+https://www.thetrace.org/newslettersignup?gclid=EAIaIQobChMIjZW-4tGO2wIVClqGCh11ygn_EAAYASAAEgL6U_D_BwE
+
+
+This link includes some graphs to easily visualize some gun violence statistics
+
+http://injuryfacts.nsc.org/home-and-community/safety-topics/firearms/data-details/?gclid=EAIaIQobChMIi92YpI6P2wIVR57ACh14EwRuEAAYAiAAEgKEVvD_BwE
+
+
+
+
+
+
+
 
